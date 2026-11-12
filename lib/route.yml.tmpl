@@ -1,0 +1,15 @@
+# Managed by old-homelab. One Traefik route.
+http:
+  routers:
+    @@ROUTE_NAME@@:
+      rule: "Host(`@@ROUTE_HOST@@`)"
+      entryPoints:
+        - websecure
+      service: @@ROUTE_NAME@@
+      tls:
+        certResolver: letsencrypt
+  services:
+    @@ROUTE_NAME@@:
+      loadBalancer:
+        servers:
+          - url: "@@ROUTE_URL@@"

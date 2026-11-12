@@ -1,0 +1,15 @@
+[Unit]
+Description=Forgejo Actions runner
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=runner
+WorkingDirectory=/home/runner
+Environment=DOCKER_HOST=unix:///run/user/@@RUNNER_UID@@/podman/podman.sock
+ExecStart=/usr/local/bin/forgejo-runner daemon
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

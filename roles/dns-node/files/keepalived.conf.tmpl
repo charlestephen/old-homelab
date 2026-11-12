@@ -1,0 +1,40 @@
+# Managed by old-homelab. Rendered from roles/dns-node/files/keepalived.conf.tmpl.
+global_defs {
+    enable_script_security
+    script_user root
+    # Lets the IPv6 virtual address reference the VMAC interface before keepalived creates it.
+    dynamic_interfaces
+}
+
+vrrp_script chk_dnsdist {
+    script "/usr/bin/timeout 1 /bin/bash -c '</dev/tcp/127.0.0.1/53'"
+    interval 2
+    fall 2
+    rise 2
+    user root
+}
+
+vrrp_instance DNS {
+    state BACKUP
+    interface eth0
+    virtual_router_id 53
+    priority @@KEEPALIVED_PRIORITY@@
+    advert_int 1
+    unicast_src_ip @@DNSDIST_IP@@
+    unicast_peer {
+        @@DNSDIST_PEER_IP@@
+    }
+    use_vmac vrrp53 @@KEEPALIVED_VMAC@@
+    vmac_xmit_base
+    virtual_ipaddress {
+        @@DNS_VIP_V4@@/32
+    }
+    # Addresses of the other family default to the base interface, so pin this one to the VMAC.
+    virtual_ipaddress_excluded {
+        @@DNS_VIP_V6@@/128 dev vrrp53 -nodad
+    }
+    track_script {
+        chk_dnsdist
+    }
+    notify "/etc/keepalived/notify.sh @@KEEPALIVED_NODE_NAME@@"
+}

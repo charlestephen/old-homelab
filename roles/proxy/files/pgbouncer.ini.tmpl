@@ -1,0 +1,15 @@
+# Managed by old-homelab. Clients log in with their own PostgreSQL passwords; PgBouncer looks the hash up as pgbouncer_auth.
+[databases]
+* = host=postgresql port=5432 auth_dbname=postgres
+
+[pgbouncer]
+listen_addr = 0.0.0.0
+listen_port = 5432
+auth_type = scram-sha-256
+auth_file = /run/secrets/pgbouncer_userlist
+auth_user = pgbouncer_auth
+auth_query = SELECT uname, phash FROM pgbouncer.user_lookup($1)
+pool_mode = transaction
+max_client_conn = 250
+default_pool_size = 20
+ignore_startup_parameters = extra_float_digits

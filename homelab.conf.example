@@ -1,0 +1,189 @@
+# Copy this file to homelab.conf and edit it. Every value here is an example: the addresses are from the
+# documentation ranges (192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24, 2001:db8::/32) and the names use example.net.
+# Replace all of them with your own. Secrets do not go here; they go in secrets.env.
+# One KEY=VALUE per line, no spaces around the =. Quote a value that contains spaces.
+
+# ---- General (every role) ---------------------------------------------------------------------------------
+TZ=America/New_York
+ADMIN_USER=sysadmin
+ADMIN_EMAIL=admin@example.net
+DOMAIN=example.net
+
+# SSH port, and the networks that may reach management services (comma separated, CIDR)
+SSH_PORT=22
+FIREWALL_TRUSTED_SOURCES=192.0.2.0/24
+# firewalld services opened to everyone, comma separated (for example http,https); empty for none
+FIREWALL_PUBLIC_SERVICES=
+
+# no: Podman from Debian stable. yes: Podman and its libraries from the next Debian release (newer features)
+USE_FORKY_PODMAN=no
+
+# User name for the Traefik API and dashboard, on every host that runs Traefik (the password is traefik_admin_password)
+TRAEFIK_ADMIN_USER=admin
+
+# Shared container network used by the dns-node and core roles
+CONTAINER_NET_SUBNET=198.51.100.0/24
+CONTAINER_NET_GATEWAY=198.51.100.1
+
+# ---- Role: dns-node ---------------------------------------------------------------------------------------
+# Two nodes run this role, each with two Technitium servers, one dnsdist and one keepalived. The settings below
+# are for the node you are installing; swap the A/B, dnsdist and keepalived values on the other node.
+DNS_NODE=1
+DNS_ZONE=ns.example.net
+
+# macvlan network that carries DNS (a VLAN interface on the host)
+DNS_NSNET_PARENT=eth0.53
+DNS_NSNET_SUBNET_V4=192.0.2.0/28
+DNS_NSNET_GATEWAY_V4=192.0.2.1
+DNS_NSNET_SUBNET_V6=2001:db8:53::/64
+
+# floating addresses clients use
+DNS_VIP_V4=192.0.2.2
+DNS_VIP_V6=2001:db8:53::2
+
+# all four Technitium servers, in order (dnsdist spreads queries across them)
+DNS_BACKENDS="192.0.2.3 192.0.2.4 192.0.2.5 192.0.2.6"
+
+# the two Technitium servers on this node: name prefix, addresses, and a locally administered MAC
+DNS_A_NAME=01
+DNS_A_IP=192.0.2.3
+DNS_A_IP6=2001:db8:53::3
+DNS_A_MAC=02:00:5e:00:53:03
+DNS_B_NAME=03
+DNS_B_IP=192.0.2.5
+DNS_B_IP6=2001:db8:53::5
+DNS_B_MAC=02:00:5e:00:53:05
+# address of each server on the shared container network (dnsnet)
+DNS_A_NET_IP=198.51.100.53
+DNS_B_NET_IP=198.51.100.153
+
+# dnsdist and keepalived on this node, and the other node's dnsdist address
+DNSDIST_IP=192.0.2.7
+DNSDIST_IP6=2001:db8:53::7
+DNSDIST_MAC=02:00:5e:00:53:07
+DNSDIST_PEER_IP=192.0.2.8
+KEEPALIVED_NODE_NAME=dns-node-1
+KEEPALIVED_PRIORITY=100
+KEEPALIVED_VMAC=02:00:5e:00:53:0a
+# networks allowed to reach the dnsdist dashboard and console, comma separated
+DNSDIST_ADMIN_NETS=192.0.2.0/24
+# limits for each Technitium container (systemd syntax): memory ceiling and CPU share (150% = 1.5 cores)
+DNS_CONTAINER_MEMORY_MAX=1792M
+DNS_CONTAINER_CPU_QUOTA=150%
+
+# certificate for the DNS names, issued with acme.sh over a Cloudflare DNS challenge
+DNS_CERT_NAME=ns.example.net
+# database that receives the DNS query logs (reached through PgBouncer)
+LOGDB_HOST=203.0.113.10
+LOGDB_NAME=dns
+LOGDB_USER=dns
+
+# image versions
+TECHNITIUM_VERSION=15.6.2
+DNSDIST_IMAGE=docker.io/powerdns/dnsdist-20:latest
+
+# ---- Role: core -------------------------------------------------------------------------------------------
+# services to install, space separated. Each name is a file in roles/core/quadlet/
+CORE_SERVICES="traefik traefik-manager postgresql forgejo pocket-id loki alloy grafana"
+
+# where service data lives
+DATA_DIR=/srv
+
+# domain that Traefik obtains a wildcard certificate for, and the service host names
+CORE_DOMAIN=lab.example.net
+FORGEJO_HOST=git.lab.example.net
+# Traefik Manager, the main instance that manages the Traefik on every host
+TM_HOST=tm.lab.example.net
+POCKET_ID_HOST=auth.lab.example.net
+GRAFANA_HOST=grafana.lab.example.net
+
+# Forgejo: SSH port published on the host, and where repositories and LFS data are kept
+FORGEJO_SSH_HOST_PORT=2222
+FORGEJO_GIT_DIR=/srv/forgejo/git
+FORGEJO_LFS_DIR=/srv/forgejo/lfs
+
+# PostgreSQL with TimescaleDB
+POSTGRES_IMAGE=docker.io/timescale/timescaledb:latest-pg18
+POSTGRES_DATA_DIR=/srv/postgresql/data
+POSTGRES_PUBLISH_ADDRESS=127.0.0.1
+
+TRAEFIK_VERSION=v3
+FORGEJO_VERSION=16
+# resolvers Traefik uses to check its DNS challenge (comma separated, with port)
+ACME_RESOLVERS=1.1.1.2:53,1.0.0.2:53
+
+# ---- Role: forgejo-runner ---------------------------------------------------------------------------------
+FORGEJO_URL=https://git.lab.example.net
+RUNNER_NAME=runner1
+RUNNER_LABELS="debian:host,ubuntu-latest:host"
+
+# ---- Role: proxy ------------------------------------------------------------------------------------------
+# The public-facing edge host: Traefik with CrowdSec and geoblocking, Cloudflare tunnels, and the services that
+# must be reachable from the internet. Remove a name from the list to skip that service.
+PROXY_SERVICES="traefik traefik-manager-agent crowdsec error-pages geoip cloudflared postgresql pgbouncer pocket-id authentik uptime-kuma headscale kutt geometrikks node-exporter alloy"
+# address on this host where the Traefik Manager agent listens; the Traefik Manager on the core host connects to it
+TMA_PUBLISH_ADDRESS=192.0.2.10
+# wildcard certificate domain and the host name of each service
+PROXY_DOMAIN=pub.example.net
+PROXY_ID_HOST=id.pub.example.net
+PROXY_AUTHENTIK_HOST=sso.pub.example.net
+PROXY_UPTIME_HOST=up.pub.example.net
+PROXY_HEADSCALE_HOST=hs.pub.example.net
+PROXY_KUTT_HOST=go.pub.example.net
+PROXY_GEO_HOST=geo.pub.example.net
+# countries allowed through the geoblock (ISO codes, space separated) and networks that skip it (comma separated)
+PROXY_ALLOWED_COUNTRIES="US CA"
+PROXY_TRUSTED_NETS=192.0.2.0/24
+# Cloudflare tunnels: one container per name and replica. Each name needs a cloudflared_<name>_token secret.
+CLOUDFLARED_TUNNELS="public"
+CLOUDFLARED_REPLICAS=2
+# outgoing mail for authentik and Kutt
+SMTP_HOST=smtp.example.net
+SMTP_PORT=587
+SMTP_USER=no-reply@example.net
+SMTP_FROM=no-reply@example.net
+# where node-exporter listens, and the Loki that Alloy sends journal logs to
+NODE_EXPORTER_LISTEN=127.0.0.1:9100
+LOKI_URL=http://loki.lab.example.net:3100/loki/api/v1/push
+# Headscale: the domain tailnet machines get names under
+HEADSCALE_BASE_DOMAIN=tail.example.net
+HEADSCALE_PREFIX_V4=100.64.0.0/10
+HEADSCALE_PREFIX_V6=fd7a:115c:a1e0::/48
+# DNS server tailnet clients use (a resolver reachable from the tailnet)
+HEADSCALE_DNS=192.0.2.2
+# image versions
+AUTHENTIK_VERSION=2026.8.5
+HEADSCALE_VERSION=v0.28.0
+# the OIDC client ID Kutt was given by your identity provider
+KUTT_OIDC_CLIENT_ID=CHANGE_ME
+
+# ---- Role: server -----------------------------------------------------------------------------------------
+# The internal application host: Traefik, PostgreSQL, Plex, AI tools and, optionally, the media stack.
+# Remove a name from the list to skip that service.
+SERVER_SERVICES="traefik traefik-manager-agent postgresql pgadmin hishtory plex tautulli ollama open-webui code-server hawser"
+# media acquisition: a VPN-bound torrent client, the Servarr apps and helpers (all optional)
+MEDIA_SERVICES="gluetun qbittorrent qui autobrr flaresolverr prowlarr radarr sonarr whisparr pyload maintainerr"
+# PostgreSQL tuning for this host (TimescaleDB tuner settings)
+SERVER_PG_MEMORY=8GB
+SERVER_PG_CPUS=4
+SERVER_PG_MAX_CONNECTIONS=500
+SERVER_DOMAIN=srv.example.net
+PLEX_HOST=plex.srv.example.net
+AI_HOST=ai.srv.example.net
+CODE_HOST=code.srv.example.net
+PGADMIN_HOST=pgadmin.srv.example.net
+PGADMIN_EMAIL=admin@example.net
+# where media and downloads live
+MEDIA_DIR=/storage/media
+DOWNLOADS_DIR=/storage/downloads
+# DNS server the VPN container uses, the VPN provider, and where the exit servers should be
+VPN_PROVIDER=protonvpn
+VPN_COUNTRIES="United States"
+VPN_DNS=192.0.2.2
+# the Dockhand server this host's agent connects to
+DOCKHAND_URL=wss://dockhand.srv.example.net/api/hawser/connect
+# OIDC provider for Open WebUI (for example Pocket ID)
+OIDC_ISSUER=https://auth.lab.example.net
+OPEN_WEBUI_OIDC_CLIENT_ID=CHANGE_ME
+# install ZFS, Samba and NFS on the host: yes or no
+SERVER_STORAGE_PACKAGES=no

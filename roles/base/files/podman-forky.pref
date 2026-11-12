@@ -1,0 +1,14 @@
+# Default: prefer the release the host runs
+Package: *
+Pin: release n=trixie
+Pin-Priority: 500
+
+# Allow the next release but never upgrade from it on its own
+Package: *
+Pin: release n=forky
+Pin-Priority: 100
+
+# Podman and its libraries from the next release
+Package: podman buildah skopeo conmon crun runc slirp4netns fuse-overlayfs uidmap aardvark-dns netavark passt containernetworking-plugins libpod* golang-github-containers* containers-common
+Pin: release n=forky
+Pin-Priority: 990

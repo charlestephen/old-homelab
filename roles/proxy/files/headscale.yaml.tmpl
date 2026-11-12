@@ -1,0 +1,51 @@
+# Managed by old-homelab. Rendered from roles/proxy/files/headscale.yaml.tmpl.
+server_url: https://@@PROXY_HEADSCALE_HOST@@
+listen_addr: 0.0.0.0:8080
+metrics_listen_addr: 127.0.0.1:9090
+grpc_listen_addr: 127.0.0.1:50443
+grpc_allow_insecure: false
+
+noise:
+  private_key_path: /var/lib/headscale/noise_private.key
+
+prefixes:
+  v4: @@HEADSCALE_PREFIX_V4@@
+  v6: @@HEADSCALE_PREFIX_V6@@
+  allocation: sequential
+
+derp:
+  server:
+    enabled: false
+  urls:
+    - https://controlplane.tailscale.com/derpmap/default
+  paths: []
+  auto_update_enabled: true
+  update_frequency: 3h
+
+disable_check_updates: true
+ephemeral_node_inactivity_timeout: 30m
+
+database:
+  type: sqlite
+  sqlite:
+    path: /var/lib/headscale/db.sqlite
+    write_ahead_log: true
+
+dns:
+  magic_dns: true
+  base_domain: @@HEADSCALE_BASE_DOMAIN@@
+  override_local_dns: true
+  nameservers:
+    global:
+      - @@HEADSCALE_DNS@@
+
+unix_socket: /var/run/headscale/headscale.sock
+unix_socket_permission: "0770"
+
+log:
+  level: info
+  format: text
+
+policy:
+  mode: file
+  path: ""

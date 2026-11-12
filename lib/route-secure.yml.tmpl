@@ -1,0 +1,17 @@
+# Managed by old-homelab. One Traefik route behind the SecurityChain middleware (headers, geoblock, CrowdSec).
+http:
+  routers:
+    @@ROUTE_NAME@@:
+      rule: "Host(`@@ROUTE_HOST@@`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - SecurityChain@file
+      service: @@ROUTE_NAME@@
+      tls:
+        certResolver: letsencrypt
+  services:
+    @@ROUTE_NAME@@:
+      loadBalancer:
+        servers:
+          - url: "@@ROUTE_URL@@"

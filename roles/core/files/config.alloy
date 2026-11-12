@@ -1,0 +1,11 @@
+// Ships the host's journal to Loki.
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}
+
+loki.source.journal "host" {
+  forward_to = [loki.write.local.receiver]
+  labels     = {job = "journal"}
+}

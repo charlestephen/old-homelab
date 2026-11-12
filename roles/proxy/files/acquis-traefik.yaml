@@ -1,0 +1,5 @@
+# Managed by old-homelab. CrowdSec reads the Traefik access log.
+filenames:
+  - /var/log/traefik/access.log
+labels:
+  type: traefik

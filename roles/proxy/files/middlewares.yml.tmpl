@@ -1,0 +1,48 @@
+# Managed by old-homelab. Every public route goes through SecurityChain: headers, then geoblock, then CrowdSec.
+http:
+  middlewares:
+    SecurityHeaders:
+      headers:
+        stsSeconds: 63072000
+        stsIncludeSubdomains: true
+        stsPreload: true
+        forceSTSHeader: true
+        contentTypeNosniff: true
+        referrerPolicy: strict-origin-when-cross-origin
+        permissionsPolicy: "accelerometer=(), camera=(), geolocation=(), gyroscope=(), microphone=(), payment=(), usb=()"
+        frameDeny: true
+        customResponseHeaders:
+          Server: ""
+          X-Powered-By: ""
+
+    GeoBlock:
+      plugin:
+        geoblock:
+          allowLocalRequests: true
+          allowUnknownCountries: false
+          api: "https://get.geojs.io/v1/ip/country/{ip}"
+          apiTimeoutMs: 750
+          cacheSize: 15
+          forceMonthlyUpdate: true
+          blackListMode: false
+          allowedIPAddresses:
+@@GEO_ALLOWED_IPS_YAML@@
+          countries:
+@@GEO_COUNTRIES_YAML@@
+
+    CrowdSecBouncer:
+      plugin:
+        crowdsec:
+          enabled: true
+          crowdsecMode: stream
+          crowdsecLapiScheme: http
+          crowdsecLapiHost: crowdsec:8080
+          crowdsecLapiKeyFile: /run/secrets/crowdsec_bouncer_key
+          updateIntervalSeconds: 60
+
+    SecurityChain:
+      chain:
+        middlewares:
+          - SecurityHeaders
+          - GeoBlock
+          - CrowdSecBouncer

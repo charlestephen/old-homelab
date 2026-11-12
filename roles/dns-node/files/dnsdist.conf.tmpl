@@ -1,0 +1,79 @@
+-- Managed by old-homelab. Rendered from roles/dns-node/files/dnsdist.conf.tmpl.
+setACL({
+  "127.0.0.0/8",
+  "10.0.0.0/8",
+  "100.64.0.0/10",
+  "172.16.0.0/12",
+  "192.168.0.0/16",
+  "169.254.0.0/16",
+  "::1/128",
+  "fc00::/7",
+  "fe80::/10",
+})
+
+-- dnsdist sets IPV6_V6ONLY, so IPv4 and IPv6 each need their own listeners.
+for _, addr in ipairs({"0.0.0.0", "[::]"}) do
+  addLocal(addr .. ":53")
+
+  addTLSLocal(addr .. ":853", "/certs/fullchain.cer", "/certs/@@DNS_CERT_NAME@@.key", {
+    minTLSVersion="tls1.3",
+  })
+
+  addDOQLocal(addr .. ":853", "/certs/fullchain.cer", "/certs/@@DNS_CERT_NAME@@.key", {
+    congestionControlAlgo="cubic",
+  })
+
+  addDOHLocal(addr .. ":443", "/certs/fullchain.cer", "/certs/@@DNS_CERT_NAME@@.key", "/dns-query", {
+    minTLSVersion="tls1.3",
+    customResponseHeaders={["alt-svc"]='h3=":443"'},
+  })
+
+  addDOH3Local(addr .. ":443", "/certs/fullchain.cer", "/certs/@@DNS_CERT_NAME@@.key", {
+    congestionControlAlgo="cubic",
+  })
+end
+
+addAction(OrRule{
+  QTypeRule(DNSQType.ANY),
+  QTypeRule(DNSQType.AXFR),
+  QTypeRule(DNSQType.IXFR),
+}, RCodeAction(DNSRCode.REFUSED))
+
+addAction(MaxQPSIPRule(500, 32, 128), DropAction())
+
+addAction(AndRule{
+  MaxQPSIPRule(100, 32, 128),
+  TCPRule(false),
+}, TCAction())
+
+addResponseAction(AllRule(), SetMinTTLResponseAction(30))
+addResponseAction(AllRule(), SetMaxTTLResponseAction(3600))
+
+-- Dashboard. The password comes from the dnsdist_web_password Podman secret.
+local webPasswordFile = io.open("/run/secrets/dnsdist_web_password")
+if webPasswordFile then
+  webserver("@@DNSDIST_IP@@:8083")
+  setWebserverConfig({
+    password=hashPassword(webPasswordFile:read("*l")),
+    acl="@@DNSDIST_ADMIN_NETS@@",
+  })
+  webPasswordFile:close()
+else
+  warnlog("dnsdist_web_password secret not mounted; dashboard disabled")
+end
+
+-- Console. The key is base64 of 32 random bytes (makeKey() format), from the dnsdist_console_key Podman secret.
+controlSocket("@@DNSDIST_IP@@:5199")
+local consoleKeyFile = io.open("/run/secrets/dnsdist_console_key")
+if consoleKeyFile then
+  setKey(consoleKeyFile:read("*l"))
+  consoleKeyFile:close()
+else
+  warnlog("dnsdist_console_key secret not mounted; console disabled")
+end
+setConsoleACL({"127.0.0.1/8", "::1", @@DNSDIST_ADMIN_NETS_LUA@@})
+
+@@DNSDIST_BACKENDS_LUA@@
+
+setServerPolicy(leastOutstanding)
+setServFailWhenNoServer(true)

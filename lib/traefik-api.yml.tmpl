@@ -1,0 +1,16 @@
+# Managed by old-homelab. The Traefik API and dashboard need a username and password. They are served only on the
+# "traefik" entry point (:8080), which is not published to the host, and the password list is a Podman secret.
+http:
+  routers:
+    traefik-api:
+      rule: "PathPrefix(`/api`) || PathPrefix(`/dashboard`)"
+      entryPoints:
+        - traefik
+      service: api@internal
+      middlewares:
+        - traefik-auth
+  middlewares:
+    traefik-auth:
+      basicAuth:
+        usersFile: /run/secrets/traefik_basic_auth
+        realm: Traefik
